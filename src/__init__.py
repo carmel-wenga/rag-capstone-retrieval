@@ -1,1 +1,1 @@
-"""Utrains RAG lab Package."""
+"""HR policy retrieval chat package."""

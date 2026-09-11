@@ -1,7 +1,7 @@
 [project]
-name = "utrains-rag-lab"
+name = "hr-policy-chat"
 version = "0.1.0"
-description = "A beginner-friendly RAG lab for Utrains Support"
+description = "A retrieval-only RAG chat application for HR policies backed by Elasticsearch"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -11,8 +11,6 @@ dependencies = [
     "pydantic-settings>=2.2.0",
     "langchain-core>=1.6.2",
     "langchain-openai>=1.6.0",
-    "langchain-anthropic>=1.7.1",
-    "langchain-text-splitters>=1.1.2",
 ]
 
 [build-system]

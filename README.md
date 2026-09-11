@@ -1,172 +1,181 @@
-# Utrains RAG Lab
+# HR Policy Retrieval Chat
 
-This lab is a hands-on project that demonstrates a beginner-friendly Retrieval-Augmented Generation (RAG) workflow for 
-a Utrains support chatbot. Students can index a small Q&A dataset into Elasticsearch, use full-text or vector search, 
-and ask an LLM to answer using only the retrieved context.
+This project is a retrieval-only RAG application for HR policies. A separate ingestion project is responsible for cleaning, chunking, embedding, and storing policy content in Elasticsearch. This repository retrieves relevant chunks from Elasticsearch and uses them to power a Streamlit chat experience.
 
-## Project goals
+## Scope
 
-- Store support questions and answers in Elasticsearch.
-- Generate embeddings for the question text with LangChain's OpenAI integration.
-- Search using either full-text search or vector similarity.
-- Pass the retrieved context to an LLM to produce a grounded answer.
-- Run the whole system locally with Docker Compose.
+This repository is responsible for:
+
+- embedding the user query
+- retrieving the most relevant chunks from Elasticsearch
+- building a grounded prompt from retrieved context
+- rendering the chat UI in Streamlit
+
+This repository is not responsible for:
+
+- document cleaning
+- chunking
+- embedding generation for stored documents
+- index creation and bulk loading jobs
+
+## Recommended Elasticsearch document schema
+
+The retrieval code expects a dense vector field named `embedding`, a text field at `context.text`, and descriptive metadata at `metadata`.
+
+```json
+{
+  "metadata": {
+    "chunk_id": "pto_policy_2026_p03_c02",
+    "document_id": "pto_policy_2026",
+    "title": "Paid Time Off Policy",
+    "category": "leave",
+    "country": "FR",
+    "version": "2026.1",
+    "effective_date": "2026-01-01",
+    "source": "employee_handbook.pdf",
+    "page_number": 3,
+    "section": "Annual Leave Entitlement",
+    "chunk_index": 12
+  },
+  "context": {
+    "text": "Employees are entitled to 25 days of paid annual leave per year..."
+  },
+  "embedding": [0.0123, -0.0456, 0.0789]
+}
+```
+
+### Minimum recommended fields
+
+- `metadata.chunk_id`
+- `metadata.document_id`
+- `metadata.title`
+- `metadata.category`
+- `metadata.country`
+- `metadata.version`
+- `metadata.effective_date`
+- `metadata.source`
+- `metadata.page_number`
+- `metadata.section`
+- `metadata.chunk_index`
+- `context.text`
+- `embedding`
+
+### Strongly recommended extensions
+
+- `metadata.language`
+- `metadata.updated_at` or `metadata.ingested_at`
+
+This schema is a good generalized baseline for HR-policy retrieval. It stays broad enough for leave, compensation, travel, benefits, conduct, and country-specific policy documents while remaining simple for retrieval and UI display.
 
 ## Project structure
 
 ```text
-utrains-rag-lab/
-├── docker-compose.yml
+rag-capstone-retrieval/
 ├── Dockerfile
 ├── pyproject.toml
 ├── .env.example
 ├── README.md
-├── data/
-│   └── source_dataset.json
-├── offline/
-│   └── index_data.py
 ├── app.py
-├── .streamlit/
-│   ├── config.toml
-│   └── secrets.toml
-├── src/
-│   ├── __init__.py
-│   ├── config.py
-│   ├── llm_client.py
-│   └── rag.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── llm_client.py
+    └── rag.py
 ```
 
-## Step-by-step setup
+## Setup
 
-Follow these steps from the project root.
+### 1. Install dependencies
 
-### 1. Install the project dependencies
-
-If you do not have `uv` installed yet, install it first:
+If you do not have `uv` installed:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then install the project dependencies:
+Then install project dependencies:
 
 ```bash
-cd utrains-rag-lab
 uv sync
 ```
 
-### 2. Configure the project secrets
+### 2. Configure environment
 
-Create a local secrets file at `.streamlit/secrets.toml` with your OpenAI API key and Elasticsearch connection details used by the LangChain OpenAI integration:
-
-```toml
-OPENAI_API_KEY = "your_openai_api_key_here"
-ELASTICSEARCH_HOST = "http://localhost:9200"
-INDEX_NAME = "utrains-qa"
-EMBEDDING_MODEL = "text-embedding-3-small"
-LLM_MODEL = "gpt-4o-mini"
-VECTOR_DIMENSION = 1536
-STREAMLIT_PORT = 8501
-```
-
-The app reads values with `st.secrets["variable_name"]` when it runs in Streamlit, and it falls back to this file 
-when you run scripts outside the app.
-
-### 3. Start Elasticsearch
-
-You can run Elasticsearch with Docker Compose:
+Create a `.env` file from `.env.example` and set the required values:
 
 ```bash
-docker compose up -d vectordatabase
+cp .env.example .env
 ```
 
-This starts a single-node Elasticsearch instance with security disabled for the lab.
+Example:
 
-If you already have Elasticsearch running locally, make sure it is available at `http://localhost:9200` and skip this step.
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+ELASTICSEARCH_HOST=http://elasticsearch:9200
+INDEX_NAME=hr-policy-chunks
+EMBEDDING_MODEL=text-embedding-3-small
+LLM_MODEL=gpt-4o-mini
+VECTOR_DIMENSION=1536
+VECTOR_FIELD=embedding
+STREAMLIT_PORT=8501
+```
 
-### 4. Index the dataset
+### 3. Connect to an external Elasticsearch
 
-The offline indexing script loads a dataset, embeds each question through `langchain-openai`, and stores the results in Elasticsearch.
+Provision Elasticsearch separately. The retriever container and the Elasticsearch container must join the **same Docker network** so the retriever can reach Elasticsearch by container hostname.
 
-Use the dataset file you want to index. For the sample source dataset in this repository:
+Example:
 
 ```bash
-docker compose exec streamlit uv run python -m offline.index_data data/source_dataset.json
+docker network create hr-rag-network
+docker run -d --name elasticsearch --network hr-rag-network -p 9200:9200 docker.elastic.co/elasticsearch/elasticsearch:9.5.2
+docker run --rm -p 8501:8501 --network hr-rag-network --env-file .env hr-policy-retrieval-chat
 ```
 
-This is the command used for the data indexing in this project.
+In that setup, `ELASTICSEARCH_HOST=http://elasticsearch:9200`.
 
-You should see logs showing:
-
-- creation of the `utrains-qa` index,
-- embedding generation for each question,
-- bulk indexing of the documents,
-- a final total count of indexed records.
-
-### 5. Run the Streamlit app
-
-From the project root, start the web app:
+### 4. Run the Streamlit app
 
 ```bash
 uv run streamlit run app.py
 ```
 
-The app will open in your browser. Use the sidebar to switch between:
-
-- Vector Search (Embeddings)
-- Full-Text Search (BM25)
-
-Then ask questions such as:
-
-- "What is the duration of the DevOps training program?"
-- "Does Utrains provide internship placement support?"
-- "How do I reset my learner account password?"
-
-The app shows both the chatbot response and the retrieved context in an expandable section so you can inspect what the model saw.
-
-### 6. Run the full Docker stack
-
-To start both Elasticsearch and the Streamlit app in one command:
+### 5. Build the retriever image
 
 ```bash
-docker compose up --build
+docker build -t hr-policy-retrieval-chat .
 ```
 
-This is the easiest setup for a classroom or local demo environment, and the app waits for Elasticsearch to be ready before starting.
+## Retrieval flow
 
-## 7. How the RAG flow works
-
-1. The user sends a question to the app.
-2. The app chooses either full-text or vector search.
-3. Elasticsearch retrieves the most relevant Q&A chunks.
-4. Those chunks are added to the prompt as context.
-5. The LangChain chat model backed by OpenAI answers using only the context it has received.
-6. The UI displays the response and the retrieved context for transparency.
+1. The user asks a question in the Streamlit chat.
+2. The app embeds the question with the configured embedding model.
+3. Elasticsearch runs kNN search against the `embedding` field.
+4. The top policy chunks are returned from `context.text` with their `metadata`.
+5. The app sends only those retrieved chunks to the chat model.
+6. The UI displays the answer and the retrieved context for traceability.
 
 ## Troubleshooting
 
 ### OpenAI API key error
 
-- Make sure `.streamlit/secrets.toml` contains a valid `openai_api_key` value.
-- Ensure the key is not blank and is active for your OpenAI account.
+- Confirm `OPENAI_API_KEY` is set in `.env`.
+- Ensure the key is active and allowed for the configured models.
 
 ### Elasticsearch connection error
 
-- Confirm Elasticsearch is running on `http://localhost:9200`.
-- If using Docker Compose, check `docker compose ps` and `docker compose logs elasticsearch`.
+- Confirm Elasticsearch is running on the configured `ELASTICSEARCH_HOST`.
+- Confirm the retriever container and the Elasticsearch container are attached to the same Docker network.
+- If using container hostnames, confirm the hostname in `ELASTICSEARCH_HOST` matches the Elasticsearch container name or network alias.
 
 ### No results returned
 
-- Re-run the indexing script after checking the dataset file.
-- Confirm the `utrains-qa` index exists in Elasticsearch.
+- Confirm the configured `INDEX_NAME` exists.
+- Confirm documents contain `context.text` and `embedding`.
+- Confirm the embedding dimension stored in Elasticsearch matches `VECTOR_DIMENSION`.
 
-## Notes for students
+### Poor retrieval quality
 
-This project is intentionally simple and easy to read. The focus is on understanding the RAG pattern:
-
-- retrieve relevant documents,
-- add them to the prompt,
-- let the model answer with those facts only.
-
-This is a great foundation for more advanced RAG experiments such as chunking, reranking, hybrid search, and 
-production-grade retrieval workflows.
+- Check that the ingestion project uses the same embedding model family as retrieval.
+- Verify policy metadata such as `country`, `category`, and `section` are populated consistently.
+- Consider adding metadata filters in the retrieval layer for country or policy family.
