@@ -1,0 +1,27 @@
+services:
+  vectordatabase:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.2
+    container_name: vectordatabase
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  streamlit:
+    build: .
+    container_name: chatbot
+    depends_on:
+      - vectordatabase
+    ports:
+      - "8501:8501"
+    command: uv run streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+    volumes:
+      - .:/app
+
+volumes:
+  esdata:

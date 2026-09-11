@@ -1,0 +1,23 @@
+[project]
+name = "utrains-rag-lab"
+version = "0.1.0"
+description = "A beginner-friendly RAG lab for Utrains Support"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "streamlit>=1.62.0",
+    "elasticsearch>=9.5.0",
+    "openai>=3.6.0",
+    "pydantic-settings>=2.2.0",
+    "langchain-core>=1.6.2",
+    "langchain-openai>=1.6.0",
+    "langchain-anthropic>=1.7.1",
+    "langchain-text-splitters>=1.1.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
