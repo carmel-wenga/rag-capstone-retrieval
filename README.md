@@ -28,10 +28,6 @@ The retrieval code expects a dense vector field named `embedding`, a text field 
     "chunk_id": "pto_policy_2026_p03_c02",
     "document_id": "pto_policy_2026",
     "title": "Paid Time Off Policy",
-    "category": "leave",
-    "country": "FR",
-    "version": "2026.1",
-    "effective_date": "2026-01-01",
     "source": "employee_handbook.pdf",
     "page_number": 3,
     "section": "Annual Leave Entitlement",
@@ -49,10 +45,6 @@ The retrieval code expects a dense vector field named `embedding`, a text field 
 - `metadata.chunk_id`
 - `metadata.document_id`
 - `metadata.title`
-- `metadata.category`
-- `metadata.country`
-- `metadata.version`
-- `metadata.effective_date`
 - `metadata.source`
 - `metadata.page_number`
 - `metadata.section`
@@ -122,14 +114,15 @@ STREAMLIT_PORT=8501
 
 ### 3. Connect to an external Elasticsearch
 
-Provision Elasticsearch separately. The retriever container and the Elasticsearch container must join the **same Docker network** so the retriever can reach Elasticsearch by container hostname.
+Provision Elasticsearch separately. The retriever container and the Elasticsearch container must join the 
+**same Docker network** so the retriever can reach Elasticsearch by container hostname.
 
 Example:
 
 ```bash
-docker network create hr-rag-network
-docker run -d --name elasticsearch --network hr-rag-network -p 9200:9200 docker.elastic.co/elasticsearch/elasticsearch:9.5.2
-docker run --rm -p 8501:8501 --network hr-rag-network --env-file .env hr-policy-retrieval-chat
+docker network create rag-network
+docker run -d --name elasticsearch --network rag-network -p 9200:9200 docker.elastic.co/elasticsearch/elasticsearch:9.5.2
+docker run --rm -p 8501:8501 --network rag-network --env-file .env rag-capstone-retrieval
 ```
 
 In that setup, `ELASTICSEARCH_HOST=http://elasticsearch:9200`.
@@ -143,7 +136,7 @@ uv run streamlit run app.py
 ### 5. Build the retriever image
 
 ```bash
-docker build -t hr-policy-retrieval-chat .
+docker build -t rag-capstone-retrieval .
 ```
 
 ## Retrieval flow

@@ -59,7 +59,7 @@ def main() -> None:
                     with st.expander("Show retrieved context", expanded=False):
                         _render_context_chunks(item["context"])
 
-    user_question = str(st.chat_input("Ask a question about an HR policy"))
+    user_question = st.chat_input("Ask a question about an HR policy")
 
     if user_question:
         st.session_state.chat_history.append({"role": "user", "content": user_question})
@@ -68,14 +68,14 @@ def main() -> None:
 
         with st.spinner("Executing…"):
             retrieved_chunks = vector_search(
-                user_question,
+                str(user_question),
                 top_k=3,
                 embedding_model=st.session_state.embedding_model,
             )
 
             if retrieved_chunks:
                 answer_text = call_llm(
-                    user_question=user_question,
+                    user_question=str(user_question),
                     context_chunks=retrieved_chunks,
                     chat_model=st.session_state.chat_model,
                 )
