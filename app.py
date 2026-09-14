@@ -8,26 +8,12 @@ from src.llm_client import create_chat_model, create_embedding_model, call_llm
 from src.rag import vector_search
 
 
-def _render_context_chunks(context_chunks: list[dict[str, Any]]) -> None:
+def _render_context_sources(context_chunks: list[dict[str, Any]]) -> None:
+    source = "**Sources:**\n"
     for index, result in enumerate(context_chunks, start=1):
         metadata = result.get("metadata", {})
-        st.markdown(f"**Result {index}**")
-        if metadata.get("title"):
-            st.write(f"Title: {metadata['title']}")
-        if metadata.get("category"):
-            st.write(f"Category: {metadata['category']}")
-        if metadata.get("country"):
-            st.write(f"Country: {metadata['country']}")
-        if metadata.get("section"):
-            st.write(f"Section: {metadata['section']}")
-        if metadata.get("source"):
-            st.write(f"Source: {metadata['source']}")
-        if metadata.get("page_number") is not None:
-            st.write(f"Page: {metadata['page_number']}")
-        st.write(f"Text: {result.get('text', '')}")
-        if result.get("score") is not None:
-            st.caption(f"Score: {result['score']:.4f}")
-
+        source += f"{index}. Title: {metadata['title']}, {metadata['source']}, Page: {metadata['page_number']}\n"
+    st.markdown(f"{source}")
 
 def main() -> None:
     st.set_page_config(
@@ -57,7 +43,7 @@ def main() -> None:
                 st.markdown(item["content"])
                 if item.get("context"):
                     with st.expander("Show retrieved context", expanded=False):
-                        _render_context_chunks(item["context"])
+                        _render_context_sources(item["context"])
 
     user_question = st.chat_input("Ask a question about an HR policy")
 
@@ -95,7 +81,7 @@ def main() -> None:
             st.markdown(answer_text)
             if retrieved_chunks:
                 with st.expander("Show retrieved context", expanded=False):
-                    _render_context_chunks(retrieved_chunks)
+                    _render_context_sources(retrieved_chunks)
 
 if __name__ == "__main__":
     main()
